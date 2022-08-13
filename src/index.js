@@ -1,87 +1,50 @@
 import './css/styles.css';
-import 'simplelightbox/dist/simple-lightbox.min.css';
-import SimpleLightbox from 'simplelightbox';
+import { fetchImg, PER_PAGE } from './js/fetchImg';
+import { addMarkupImgCarts } from './js/addMarkupImgCarts';
+import { creatImgCart } from './js/creatImgCart';
+import { clearImgCarts } from './js/clearImgCarts';
+import refs from './js/refs';
+import simplebox from './libs/simplebox';
+import { notiflixFailure, notiflixInfo, notiflixSuccess } from './libs/notiflix';
 
-
-const simplebox = new SimpleLightbox('.gallery a', {
-  captionsData: 'alt',
-  captionDelay: 250,
-});
-console.log('simplebox', simplebox);
-
-const BASE_URL = 'https://pixabay.com/api/';
-const PARAMS = '?key=17103623-ab930b7d528134dd68b9da242&q=yellow+flowers&image_type=photo';
-
-function fetchImg() {
-  return fetch(`${BASE_URL}${PARAMS}`)
-    .then(response => response.json());
+async function renderMarkupImgCarts(search, page) {
+  const { data: { hits, totalHits } } = await fetchImg(search, page);
+  if (!hits.length) {
+    notiflixFailure('Sorry, there are no images matching your search query. Please try again.');
+  } else if (page >= Math.floor(totalHits / PER_PAGE)) {
+    notiflixInfo('We\'re sorry, but you\'ve reached the end of search results.');
+    showLoadBtn(false);
+  } else {
+    addMarkupImgCarts(hits, refs.list, creatImgCart);
+    showLoadBtn(true);
+    page === 1 && notiflixSuccess(`Hooray! We found ${totalHits} images.`);
+  }
+  simplebox.refresh();
 }
 
-function renderMarkup() {
-  fetchImg().then(data => {
-    console.log("data",data);
-    addMarkup(data.hits, refs.list);
-  });
-}
-
-
-const refs = {
-  formEl: document.querySelector('#search-form'),
-  list: document.querySelector('.gallery'),
-};
+let page = 1;
 
 refs.formEl.addEventListener('submit', onFormSubmit);
+refs.load.addEventListener('click', onNextPage);
 
-function onFormSubmit(e) {
+async function onFormSubmit(e) {
   e.preventDefault();
-
   const search = e.currentTarget.elements.searchQuery.value.trim();
-  console.log(search);
-
-  renderMarkup();
-  simplebox.refresh();
-
+  resetPage();
+  clearImgCarts(refs.list);
+  await renderMarkupImgCarts(search, page);
 }
 
-
-function creatImgCart(hit) {
-  const {
-    largeImageURL,
-    webformatURL,
-    tags,
-    webformatWidth,
-    webformatHeight,
-    likes,
-    views,
-    comments,
-    downloads,
-  } = hit;
-  return `<li class='photo__card card-set-item'>
-    <a class='gallery__item' href='${largeImageURL}'>
-        <img class='gallery__image' src='${webformatURL}' alt='${tags}' loading='lazy' width='${webformatWidth}' height='${webformatHeight}'>
-    <ul class='info card-set'>
-        <li class='info__item card-set-item'>
-            <b>Likes</b>
-            <span>${likes}</span>
-        </li>
-        <li class='info__item card-set-item'>
-            <b>Views</b>
-            <span>${views}</span>
-        </li>
-        <li class='info__item card-set-item'>
-            <b>Comments</b>
-            <span>${comments}</span>
-        </li>
-        <li class='info__item card-set-item'>
-            <b>Downloads</b>
-            <span>${downloads}</span>
-        </li>
-    </ul>
-    </a>
-   </li>`;
+async function onNextPage(e) {
+  const search = refs.formEl.elements.searchQuery.value.trim();
+  page += 1;
+  await renderMarkupImgCarts(search, page);
 }
 
-function addMarkup(hits, element) {
-  const markup = hits.map(creatImgCart).join('');
-  element.insertAdjacentHTML('beforeend', markup);
+function resetPage() {
+  page = 1;
+}
+
+function showLoadBtn(isShow) {
+  refs.load.style.display = isShow ? 'block' : 'none';
 }
